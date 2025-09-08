@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Powered Nutrition Planner</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <div class="container">
+        <h1>AI Nutrition Planner</h1>
+        <p>Get personalized nutrition recommendations instantly.</p>
+
+        <form id="nutritionForm">
+            <div class="row">
+                <div class="input-group" style="width: 50%;">
+                    <label>Age:</label>
+                    <input style="width: 25%;" type="number" id="age" required>
+                </div>
+                <div class="input-group" style="width: 50%;">
+                    <label>Weight (kg):</label>
+                    <input style="width: 25%;" type="number" id="weight"required>
+                </div>
+                <div class="input-group" style="width: 50%;">
+                    <label>Height (cm):</label>
+                    <input style="width: 25%;" type="number" id="height"required>
+                </div>
+                <div class="input-group" style="width: 50%;">
+                    <label>Calculated BMI:</label>
+                    <input style="width: 25%;" type="number" id="bmi" readonly>
+                </div>
+            </div>
+        
+            <div class="input-group" style="width: 85%;">
+                <label>Activity Level:</label>
+                <select id="activity" style="width: 61%;">
+                    <option value="1">Low (Sedentary)</option>
+                    <option value="2">Medium (Moderate Exercise)</option>
+                    <option value="3">High (Athlete)</option>
+                </select>
+            </div>
+        
+            <button type="submit" id="submitBtn">Get Recommendation</button>
+        </form>
+        
+
+        <div id="loadingSpinner" class="spinner"></div>
+        <h3 id="result"></h3>
+        <div id="mealPlan" style="margin-top: 30px; text-align: left;"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
