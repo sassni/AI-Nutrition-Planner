@@ -29,3 +29,7 @@ node_modules/
 # Environment variables
 .env
 
+.env
+.venv/
+__pycache__/
+*.keras

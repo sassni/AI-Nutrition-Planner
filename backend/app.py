@@ -1,14 +1,23 @@
-import random
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import numpy as np
 import joblib
 import tensorflow as tf
+import os
+from dotenv import load_dotenv
+import google.generativeai as genai
+import json
+
+# 1. Load environment variables from your .env file
+load_dotenv()
+
+# 2. Configure Gemini API
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 app = Flask(__name__)
 CORS(app)
 
-# Load trained model and scaler
+# Load your custom trained TF model and scaler
 model = tf.keras.models.load_model("nutrition_model.keras")
 scaler = joblib.load("scaler.pkl")
 
@@ -20,60 +29,68 @@ def predict():
         bmi = data.get('bmi')
         activity_level = data.get('activity_level')
 
-        # --- Calorie Estimation Logic ---
-        calories = 0
-        if activity_level == 1:
-            calories = 20 * bmi + age * 2
-        elif activity_level == 2:
-            calories = 25 * bmi + age * 2
-        elif activity_level == 3:
-            calories = 30 * bmi + age * 2
-
-        # --- Meal Plan Generation ---
-        meal_distribution = {
-            "breakfast": 0.25,
-            "lunch": 0.30,
-            "snack": 0.15,
-            "dinner": 0.30
-        }
-
-        food_database = {
-        "breakfast": ["Oats with Milk", "Boiled Eggs", "Fruit Smoothie", "Greek Yogurt"],
-        "lunch": ["Grilled Chicken with Rice", "Mixed Vegetable Curry", "Salmon Salad", "Quinoa Bowl"],
-        "snack": ["Nuts & Seeds", "Banana", "Protein Bar", "Boiled Corn"],
-        "dinner": ["Vegetable Soup", "Tofu Stir-fry", "Grilled Fish with Veggies", "Chapati with Lentils"]
-        }
-
-        meal_plan = {}
-        for meal, ratio in meal_distribution.items():
-            kcal = round(calories * ratio, 2)
-            items = random.sample(food_database[meal], 2)
-            meal_plan[meal] = {
-                "calories": kcal,
-                "items": items
-            }
-
-        return jsonify({
-            "caloric_need": round(calories, 2),
-            "meal_plan": meal_plan
-        })
-
         # Ensure valid input
         if None in (age, bmi, activity_level):
             return jsonify({"error": "Missing input data"}), 400
 
-        # Prepare input
+        # --- STEP 1: THE MATH (Your TensorFlow Model) ---
         input_data = np.array([[float(age), float(bmi), float(activity_level)]])
-
-        # Normalize data
         input_data = scaler.transform(input_data)
-
-        # Predict calories
         prediction = model.predict(input_data)[0][0]
+        caloric_need = float(prediction)
 
-        print("Prediction Sent:", float(prediction))  # Debugging
+        # --- STEP 2: THE INTELLIGENCE (Gemini API) ---
+        prompt = f"""
+        You are a world-class AI nutritionist and fitness coach. 
+        A user has the following profile:
+        - Age: {age}
+        - BMI: {bmi}
+        - Activity Level: {activity_level} (1=Sedentary, 2=Moderate, 3=Active)
+        - Target Daily Caloric Intake: {caloric_need:.0f} kcal
 
-        return jsonify({"caloric_need": float(prediction)})  # Convert NumPy float to Python float
+        Generate a highly customized daily meal plan and a weekly workout routine.
+        Return the response strictly as a JSON object with the following structure:
+        {{
+            "meal_plan": {{
+                "breakfast": {{"calories": 0, "macros": "Protein: Xg, Carbs: Yg, Fats: Zg", "items": ["item 1", "item 2"]}},
+                "lunch": {{"calories": 0, "macros": "Protein: Xg, Carbs: Yg, Fats: Zg", "items": ["item 1", "item 2"]}},
+                "snack": {{"calories": 0, "macros": "Protein: Xg, Carbs: Yg, Fats: Zg", "items": ["item 1", "item 2"]}},
+                "dinner": {{"calories": 0, "macros": "Protein: Xg, Carbs: Yg, Fats: Zg", "items": ["item 1", "item 2"]}}
+            }},
+            "workout_plan": [
+                {{"day": "Monday", "routine": "..."}},
+                {{"day": "Tuesday", "routine": "..."}},
+                {{"day": "Wednesday", "routine": "..."}},
+                {{"day": "Thursday", "routine": "..."}},
+                {{"day": "Friday", "routine": "..."}},
+                {{"day": "Saturday", "routine": "..."}},
+                {{"day": "Sunday", "routine": "..."}}
+            ]
+        }}
+        Ensure the sum of the meal calories equals exactly {caloric_need:.0f}. 
+        Make the food suggestions and workouts realistic and specific to their BMI and activity level.
+        """
+
+        # We use gemini-2.5-flash as it is lightning fast for this type of generation
+        generative_model = genai.GenerativeModel("gemini-2.5-flash")
+        
+        # Force the output to be JSON
+        response = generative_model.generate_content(
+            prompt,
+            generation_config=genai.GenerationConfig(
+                response_mime_type="application/json"
+            )
+        )
+
+        # Parse Gemini's JSON response
+        ai_data = json.loads(response.text)
+
+        # Return the combined custom model prediction and Gemini's dynamic content
+        return jsonify({
+            "caloric_need": round(caloric_need, 2),
+            "meal_plan": ai_data.get("meal_plan"),
+            "workout_plan": ai_data.get("workout_plan")
+        })
 
     except Exception as e:
         print("Error:", str(e))
